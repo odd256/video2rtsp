@@ -1,7 +1,7 @@
 [project]
 name = "video2rtsp"
 version = "0.1.0"
-description = "Add your description here"
+description = "一个基于 Python 和 FFmpeg 的多路 RTSP 视频流推流工具"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = []

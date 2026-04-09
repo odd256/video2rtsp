@@ -1,10 +1,28 @@
-# Python-generated files
+# Python 编译文件
 __pycache__/
-*.py[oc]
-build/
-dist/
-wheels/
-*.egg-info
+*.py[cod]
+*$py.class
 
-# Virtual environments
+# 虚拟环境
 .venv
+
+# 本地测试用的视频文件 (避免将大体积视频提交到 Git)
+*.mp4
+*.mkv
+*.avi
+*.mov
+*.flv
+*.ts
+
+# 配置文件
+config.toml
+
+# 项目运行日志
+*.log
+
+# 操作系统/编辑器产生的隐藏临时文件
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.bak

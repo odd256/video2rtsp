@@ -1,11 +1,88 @@
+import argparse
 import sys
+import time
+import logging
+import signal
+import os
+import tomllib
+from pusher import StreamPusher
 
-from video2rtsp.cli import main as cli_main
+# 配置日志记录格式
+logging.basicConfig(
+    level=logging.INFO, 
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+
+pushers = []
+
+def signal_handler(sig, frame):
+    """
+    捕捉 Ctrl+C 或终止信号，确保所有正在跑的子进程都能优雅退出
+    """
+    logging.info("接收到终止信号，正在关闭所有推流...")
+    for p in pushers:
+        p.stop()
+    sys.exit(0)
+
+def main():
+    parser = argparse.ArgumentParser(description="Multi-stream RTSP Pusher")
+    parser.add_argument("-c", "--config", help="配置文件路径", default="config.toml")
+    args = parser.parse_args()
+
+    # 读取配置文件
+    if not os.path.exists(args.config):
+        logging.error(f"找不到配置文件: {args.config}")
+        return
+
+    try:
+        with open(args.config, 'rb') as f:
+            config = tomllib.load(f)
+    except Exception as e:
+        logging.error(f"解析 TOML 配置文件失败 {args.config}: {e}")
+        return
 
 
-def main() -> int:
-    return cli_main(sys.argv[1:])
+    # 注册终止信号
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
 
+    streams_conf = config.get("streams", [])
+    if not streams_conf:
+        logging.warning("配置文件中没有找到 'streams' 推流任务。")
+        return
+
+    # 并发初始化和启动推流任务
+    for sc in streams_conf:
+        name = sc.get("name", "Unknown_Stream")
+        url = sc.get("url")
+        files = sc.get("files", [])
+        loop = sc.get("loop", True)
+
+        if not url or not files:
+            logging.warning(f"[{name}] 缺少 'url' 或 'files' 参数，跳过启动。")
+            continue
+            
+        pusher = StreamPusher(name, url, files, loop)
+        # 将启动后的对象保存，在收到终止信号时清理
+        pushers.append(pusher)
+        pusher.start()
+
+    logging.info(f"共启动了 {len(pushers)} 个并发推流任务。按下 Ctrl+C 停止运行。")
+
+    try:
+        # 主线程挂起监控子进程的状态
+        while True:
+            for p in pushers:
+                if p.process and p.process.poll() is not None:
+                    # 如果 poll() 不是 None，说明进程退出了（异常断开之类的）
+                    # 可以在这里扩展宕机重启的机制（Restart on Failure），目前是先记录错误码
+                    # 为不刷屏，重置 p.process = None 以免重复报警
+                    logging.error(f"[{p.name}] 的 FFmpeg 进程已退出，返回码: {p.process.poll()}")
+                    p.process = None
+            time.sleep(2)
+    except KeyboardInterrupt:
+        # 回退处理机制
+        pass
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    main()

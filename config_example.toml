@@ -1,0 +1,16 @@
+[[streams]]
+name = "Camera_1_LivingRoom"
+url = "rtsp://localhost:8554/cam1"
+files = [
+  "A_1.mp4",
+  "A_2.mp4"
+]
+loop = true
+
+[[streams]]
+name = "Camera_2_Doorbell"
+url = "rtsp://localhost:8554/cam2"
+files = [
+  "B_1.mp4"
+]
+loop = true
