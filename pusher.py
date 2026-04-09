@@ -2,6 +2,7 @@ import subprocess
 import os
 import tempfile
 import logging
+import threading
 
 class StreamPusher:
     def __init__(self, name, url, files, loop=True):
@@ -50,6 +51,8 @@ class StreamPusher:
         cmd.extend([
             "-i", self.playlist_path,
             "-c:v", "libx264",  # 使用 H.264 编码以获取最佳兼容性
+            "-preset", "veryfast", # 降低 CPU 占用，适合多路并发推流
+            "-tune", "zerolatency", # 降低流延迟
             "-pix_fmt", "yuv420p", # 强制使用 yuv420p 像素格式，提高全平台播放兼容性
             "-c:a", "aac",      # 使用 AAC 编码音频流
             "-f", "rtsp",
@@ -62,9 +65,30 @@ class StreamPusher:
         self.process = subprocess.Popen(
             cmd,
             stdout=subprocess.DEVNULL,
-            stderr=subprocess.PIPE,  # FFmpeg 的日志默认输出在 stderr 中
-            text=True
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding='utf-8',
+            errors='replace'
         )
+
+        # 启动线程异步读取 stderr 并在日志中输出，方便调试
+        thread = threading.Thread(target=self._read_stderr, daemon=True)
+        thread.start()
+
+    def _read_stderr(self):
+        """读取 FFmpeg 的 stderr 输出并打印到日志"""
+        if not self.process or not self.process.stderr:
+            return
+            
+        for line in self.process.stderr:
+            line = line.strip()
+            if not line:
+                continue
+            # 根据 FFmpeg 的输出特征，标记错误或警告
+            if "Error" in line or "error" in line or "Unknown" in line:
+                logging.error(f"[{self.name} FFmpeg] {line}")
+            else:
+                logging.debug(f"[{self.name} FFmpeg] {line}")
 
     def stop(self):
         if self.process and self.process.poll() is None:
