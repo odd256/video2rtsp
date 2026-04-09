@@ -49,7 +49,9 @@ class StreamPusher:
             
         cmd.extend([
             "-i", self.playlist_path,
-            "-c", "copy",   # 默认不对音视频流重新编码，只进行封装拷贝。如果遇到不兼容的客户端，可以改成 -c:v libx264
+            "-c:v", "libx264",  # 使用 H.264 编码以获取最佳兼容性
+            "-pix_fmt", "yuv420p", # 强制使用 yuv420p 像素格式，提高全平台播放兼容性
+            "-c:a", "aac",      # 使用 AAC 编码音频流
             "-f", "rtsp",
             "-rtsp_transport", "tcp",  # 推流通常推荐使用 TCP 防止丢包，如需适应 UDP 可以去掉
             self.url
