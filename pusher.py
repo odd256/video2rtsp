@@ -2,7 +2,7 @@ import subprocess
 import os
 import tempfile
 import logging
-import threading
+
 
 class StreamPusher:
     def __init__(self, name, url, files, loop=True):
@@ -22,14 +22,16 @@ class StreamPusher:
                 logging.warning(f"[{self.name}] 文件不存在 (忽略): {abs_path}")
             else:
                 valid_files.append(abs_path)
-                
+
         if not valid_files:
             logging.error(f"[{self.name}] 没有有效的视频文件，推流停止。")
             return
 
         # 创建一个临时文件来存储视频播放列表
-        fd, self.playlist_path = tempfile.mkstemp(prefix=f"playlist_{self.name}_", suffix=".txt", text=True)
-        with os.fdopen(fd, 'w', encoding='utf-8') as f:
+        fd, self.playlist_path = tempfile.mkstemp(
+            prefix=f"playlist_{self.name}_", suffix=".txt", text=True
+        )
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
             for abs_path in valid_files:
                 # 针对 FFmpeg concat 需要的安全转义 (处理单引号等)
                 escaped_path = abs_path.replace("'", "'\\''")
@@ -38,57 +40,37 @@ class StreamPusher:
         # 构建 FFmpeg 命令
         # -re: 按正常帧率播放，防止直接高速倾倒数据给服务端
         # -f concat: 使用 FFmpeg 内置的分离器顺序拉取多个文件
-        cmd = [
-            "ffmpeg",
-            "-re",
-            "-f", "concat",
-            "-safe", "0"
-        ]
-        
+        cmd = ["ffmpeg", "-re", "-f", "concat", "-safe", "0"]
+
         if self.loop:
             cmd.extend(["-stream_loop", "-1"])
-            
-        cmd.extend([
-            "-i", self.playlist_path,
-            "-c:v", "libx264",  # 使用 H.264 编码以获取最佳兼容性
-            "-preset", "veryfast", # 降低 CPU 占用，适合多路并发推流
-            "-tune", "zerolatency", # 降低流延迟
-            "-pix_fmt", "yuv420p", # 强制使用 yuv420p 像素格式，提高全平台播放兼容性
-            "-c:a", "aac",      # 使用 AAC 编码音频流
-            "-f", "rtsp",
-            "-rtsp_transport", "tcp",  # 推流通常推荐使用 TCP 防止丢包，如需适应 UDP 可以去掉
-            self.url
-        ])
+
+        cmd.extend(
+            [
+                "-i",
+                self.playlist_path,
+                "-c:v",
+                "libx264",  # 使用 H.264 编码以获取最佳兼容性
+                "-pix_fmt",
+                "yuv420p",  # 强制使用 yuv420p 像素格式，提高全平台播放兼容性
+                "-c:a",
+                "aac",  # 使用 AAC 编码音频流
+                "-f",
+                "rtsp",
+                "-rtsp_transport",
+                "tcp",  # 推流通常推荐使用 TCP 防止丢包，如需适应 UDP 可以去掉
+                self.url,
+            ]
+        )
 
         logging.info(f"[{self.name}] 正在启动 FFmpeg 推流...")
         logging.debug(f"[{self.name}] 完整命令: {' '.join(cmd)}")
         self.process = subprocess.Popen(
             cmd,
             stdout=subprocess.DEVNULL,
-            stderr=subprocess.PIPE,
+            stderr=subprocess.PIPE,  # FFmpeg 的日志默认输出在 stderr 中
             text=True,
-            encoding='utf-8',
-            errors='replace'
         )
-
-        # 启动线程异步读取 stderr 并在日志中输出，方便调试
-        thread = threading.Thread(target=self._read_stderr, daemon=True)
-        thread.start()
-
-    def _read_stderr(self):
-        """读取 FFmpeg 的 stderr 输出并打印到日志"""
-        if not self.process or not self.process.stderr:
-            return
-            
-        for line in self.process.stderr:
-            line = line.strip()
-            if not line:
-                continue
-            # 根据 FFmpeg 的输出特征，标记错误或警告
-            if "Error" in line or "error" in line or "Unknown" in line:
-                logging.error(f"[{self.name} FFmpeg] {line}")
-            else:
-                logging.debug(f"[{self.name} FFmpeg] {line}")
 
     def stop(self):
         if self.process and self.process.poll() is None:
@@ -98,10 +80,12 @@ class StreamPusher:
                 self.process.wait(timeout=5)
             except subprocess.TimeoutExpired:
                 self.process.kill()
-        
+
         # 清理临时创建的列表文件
         if self.playlist_path and os.path.exists(self.playlist_path):
             try:
                 os.remove(self.playlist_path)
             except Exception as e:
-                logging.error(f"[{self.name}] 无法删除临时列表文件 {self.playlist_path}: {e}")
+                logging.error(
+                    f"[{self.name}] 无法删除临时列表文件 {self.playlist_path}: {e}"
+                )
