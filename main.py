@@ -74,12 +74,12 @@ def main():
         while True:
             for p in pushers:
                 if p.process and p.process.poll() is not None:
-                    # 如果 poll() 不是 None，说明进程退出了（异常断开之类的）
-                    # 可以在这里扩展宕机重启的机制（Restart on Failure），目前是先记录错误码
-                    # 为不刷屏，重置 p.process = None 以免重复报警
-                    logging.error(f"[{p.name}] 的 FFmpeg 进程已退出，返回码: {p.process.poll()}")
-                    p.process = None
-            time.sleep(2)
+                    # 如果 poll() 不是 None，说明进程退出了（异常断开、奔溃等）
+                    ret_code = p.process.poll()
+                    logging.error(f"[{p.name}] FFmpeg 进程已退出，返回码: {ret_code}。正在尝试自动重启...")
+                    # 调用 p.start() 重新启动推流任务
+                    p.start()
+            time.sleep(5)
     except KeyboardInterrupt:
         # 回退处理机制
         pass

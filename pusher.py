@@ -2,6 +2,7 @@ import subprocess
 import os
 import tempfile
 import logging
+import threading
 
 
 class StreamPusher:
@@ -40,7 +41,9 @@ class StreamPusher:
         # 构建 FFmpeg 命令
         # -re: 按正常帧率播放，防止直接高速倾倒数据给服务端
         # -f concat: 使用 FFmpeg 内置的分离器顺序拉取多个文件
-        cmd = ["ffmpeg", "-re", "-f", "concat", "-safe", "0"]
+        # -loglevel error: 只打印错误，减少不必要的日志信息
+        # -fflags +genpts: 自动生成时间戳，解决 concat 模式下可能的时间戳不连续问题
+        cmd = ["ffmpeg", "-loglevel", "error", "-re", "-fflags", "+genpts", "-f", "concat", "-safe", "0"]
 
         if self.loop:
             cmd.extend(["-stream_loop", "-1"])
@@ -55,6 +58,8 @@ class StreamPusher:
                 "rtsp",
                 "-rtsp_transport",
                 "tcp",  # 推流通常推荐使用 TCP 防止丢包，如需适应 UDP 可以去掉
+                "-rw_timeout",
+                "15000000", # 设置超时为 15 秒（单位：微秒），防止网络断开时无限挂起
                 self.url,
             ]
         )
@@ -66,7 +71,25 @@ class StreamPusher:
             stdout=subprocess.DEVNULL,
             stderr=subprocess.PIPE,  # FFmpeg 的日志默认输出在 stderr 中
             text=True,
+            encoding="utf-8",
+            errors="replace",
         )
+
+        # 启动后台线程读取 FFmpeg 的错误输出
+        self.error_thread = threading.Thread(target=self._read_stderr, daemon=True)
+        self.error_thread.start()
+
+    def _read_stderr(self):
+        """实时读取 FFmpeg stderr 并记录到日志中"""
+        if self.process and self.process.stderr:
+            try:
+                for line in iter(self.process.stderr.readline, ""):
+                    if line:
+                        line = line.strip()
+                        # 将 stderr 修改为 debug 级别，默认 INFO 级别不会输出
+                        logging.debug(f"[{self.name} FFmpeg] {line}")
+            except Exception as e:
+                logging.debug(f"[{self.name}] 读取错误日志线程异常: {e}")
 
     def stop(self):
         if self.process and self.process.poll() is None:
