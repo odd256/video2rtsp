@@ -50,11 +50,7 @@ class StreamPusher:
                 "-i",
                 self.playlist_path,
                 "-c:v",
-                "libx264",  # 使用 H.264 编码以获取最佳兼容性
-                "-pix_fmt",
-                "yuv420p",  # 强制使用 yuv420p 像素格式，提高全平台播放兼容性
-                "-c:a",
-                "aac",  # 使用 AAC 编码音频流
+                "copy",
                 "-f",
                 "rtsp",
                 "-rtsp_transport",
