@@ -1,3 +1,8 @@
+# 全局硬件加速配置 (可选: cuda, qsv, amf, dxva2, d3d11va, none)
+# cuda: NVIDIA 显卡, qsv: Intel 显卡, amf: AMD 显卡
+# 开启硬解可以显著降低转码（如子码流缩放）时的 CPU 占用
+hwaccel = "none"
+
 [[streams]]
 name = "Live_Stream_1"
 url = "rtsp://localhost:8554/stream1"

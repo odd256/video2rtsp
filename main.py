@@ -51,6 +51,9 @@ def main():
         logging.warning("配置文件中没有找到 'streams' 推流任务。")
         return
 
+    # 全局硬件加速设置
+    global_hwaccel = config.get("hwaccel", "none")
+
     # 并发初始化和启动推流任务
     for sc in streams_conf:
         name = sc.get("name", "Unknown_Stream")
@@ -58,12 +61,13 @@ def main():
         files = sc.get("files", [])
         loop = sc.get("loop", True)
         audio = sc.get("audio", False)
+        hwaccel = sc.get("hwaccel", global_hwaccel)
 
         if not url or not files:
             logging.warning(f"[{name}] 缺少 'url' 或 'files' 参数，跳过启动。")
             continue
             
-        pusher = StreamPusher(name, url, files, loop, audio=audio)
+        pusher = StreamPusher(name, url, files, loop, audio=audio, hwaccel=hwaccel)
         # 将启动后的对象保存，在收到终止信号时清理
         pushers.append(pusher)
         pusher.start()
@@ -77,11 +81,13 @@ def main():
             s_height = sub.get("height")
             s_bitrate = sub.get("video_bitrate")
             s_audio = sub.get("audio", False) # 子流默认关闭音频
+            s_hwaccel = sub.get("hwaccel", hwaccel) # 子流默认继承主流的硬件加速配置
 
             sub_pusher = StreamPusher(
                 s_name, s_url, files, loop,
                 width=s_width, height=s_height,
-                video_bitrate=s_bitrate, audio=s_audio
+                video_bitrate=s_bitrate, audio=s_audio,
+                hwaccel=s_hwaccel
             )
             pushers.append(sub_pusher)
             sub_pusher.start()

@@ -6,7 +6,7 @@ import threading
 
 
 class StreamPusher:
-    def __init__(self, name, url, files, loop=True, width=None, height=None, video_bitrate=None, audio=False):
+    def __init__(self, name, url, files, loop=True, width=None, height=None, video_bitrate=None, audio=False, hwaccel=None):
         self.name = name
         self.url = url
         self.files = files
@@ -15,6 +15,7 @@ class StreamPusher:
         self.height = height
         self.video_bitrate = video_bitrate
         self.audio = audio
+        self.hwaccel = hwaccel
         self.process = None
         self.playlist_path = None
 
@@ -47,7 +48,16 @@ class StreamPusher:
         # -f concat: 使用 FFmpeg 内置的分离器顺序拉取多个文件
         # -loglevel error: 只打印错误，减少不必要的日志信息
         # -fflags +genpts: 自动生成时间戳，解决 concat 模式下可能的时间戳不连续问题
-        cmd = ["ffmpeg", "-loglevel", "error", "-re", "-fflags", "+genpts", "-f", "concat", "-safe", "0"]
+        cmd = ["ffmpeg", "-loglevel", "error"]
+
+        # 硬件加速解码相关标志 (放在 -i 之前)
+        if self.hwaccel and self.hwaccel != "none":
+            cmd.extend(["-hwaccel", self.hwaccel])
+            if self.hwaccel == "cuda":
+                # 对于 NVIDIA，通常需要设置输出格式为 cuda 以保持数据在显存中
+                cmd.extend(["-hwaccel_output_format", "cuda"])
+
+        cmd.extend(["-re", "-fflags", "+genpts", "-f", "concat", "-safe", "0"])
 
         if self.loop:
             cmd.extend(["-stream_loop", "-1"])
@@ -57,11 +67,27 @@ class StreamPusher:
         # 视频/音频编码逻辑
         if self.width or self.video_bitrate:
             # 开启转码模式
-            cmd.extend(["-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency"])
+            encoder = "libx264"
+            if self.hwaccel == "cuda":
+                encoder = "h264_nvenc"
+            elif self.hwaccel == "qsv":
+                encoder = "h264_qsv"
+            elif self.hwaccel == "amf":
+                encoder = "h264_amf"
+                
+            cmd.extend(["-c:v", encoder])
+            
+            # 软件编码器特有优化参数
+            if encoder == "libx264":
+                cmd.extend(["-preset", "ultrafast", "-tune", "zerolatency"])
             
             # 分辨率调整
             if self.width and self.height:
-                cmd.extend(["-vf", f"scale={self.width}:{self.height}"])
+                # 如果开启了 cuda 硬件加速，必须使用硬件滤镜 scale_cuda
+                if self.hwaccel == "cuda":
+                    cmd.extend(["-vf", f"scale_cuda={self.width}:{self.height}"])
+                else:
+                    cmd.extend(["-vf", f"scale={self.width}:{self.height}"])
             
             # 码率控制
             if self.video_bitrate:
