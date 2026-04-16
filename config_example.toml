@@ -1,11 +1,21 @@
 [[streams]]
-name = "Camera_1_LivingRoom"
-url = "rtsp://localhost:8554/cam1"
+name = "Live_Stream_1"
+url = "rtsp://localhost:8554/stream1"
 files = [
-  "A_1.mp4",
-  "A_2.mp4"
+  "videos/clip1.mp4",
+  "videos/clip2.mp4"
 ]
 loop = true
+audio = false  # 主流默认也关闭音频
+
+# 子码流示例：模拟低清晰度预览流
+[[streams.sub_streams]]
+name_suffix = "_sub"      # 最终名称: Live_Stream_1_sub
+url_suffix = "_sub"       # 最终URL: rtsp://localhost:8554/stream1_sub
+width = 640               # 宽度缩放到 640
+height = 360              # 高度缩放到 360
+video_bitrate = "500k"    # 限制视频码率为 500kbps
+audio = false             # 子流默认关闭音频
 
 [[streams]]
 name = "Camera_2_Doorbell"

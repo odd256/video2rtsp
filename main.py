@@ -57,15 +57,34 @@ def main():
         url = sc.get("url")
         files = sc.get("files", [])
         loop = sc.get("loop", True)
+        audio = sc.get("audio", False)
 
         if not url or not files:
             logging.warning(f"[{name}] 缺少 'url' 或 'files' 参数，跳过启动。")
             continue
             
-        pusher = StreamPusher(name, url, files, loop)
+        pusher = StreamPusher(name, url, files, loop, audio=audio)
         # 将启动后的对象保存，在收到终止信号时清理
         pushers.append(pusher)
         pusher.start()
+
+        # 处理子码流配置
+        sub_streams = sc.get("sub_streams", [])
+        for sub in sub_streams:
+            s_name = name + sub.get("name_suffix", "_sub")
+            s_url = url + sub.get("url_suffix", "_sub")
+            s_width = sub.get("width")
+            s_height = sub.get("height")
+            s_bitrate = sub.get("video_bitrate")
+            s_audio = sub.get("audio", False) # 子流默认关闭音频
+
+            sub_pusher = StreamPusher(
+                s_name, s_url, files, loop,
+                width=s_width, height=s_height,
+                video_bitrate=s_bitrate, audio=s_audio
+            )
+            pushers.append(sub_pusher)
+            sub_pusher.start()
 
     logging.info(f"共启动了 {len(pushers)} 个并发推流任务。按下 Ctrl+C 停止运行。")
 

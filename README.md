@@ -5,8 +5,10 @@
 ## ✨ 功能特性
 
 - 🚀 **高性能**: 默认采用 `-c copy` 模式，直接透传音视频流，极低 CPU 占用。
+- 📉 **子码流模拟**: 支持通过转码自动生成低分辨率、低码率的子流，满足模拟监控环境需求。
 - 📑 **列表播放**: 利用 FFmpeg 的 `concat` 分离器，支持将多个视频文件按顺序无缝拼接推流。
 - 🔄 **循环模式**: 支持单个流的无限循环推流。
+- 🔇 **音频控制**: 支持为主流或子流配置音频开关，默认关闭音频以节省带宽。
 - 🧵 **并发处理**: 能够在一个进程中同时管理多个独立的 RTSP 推流任务。
 - 🛡️ **优雅管理**: 自动管理 FFmpeg 进程，支持 Ctrl+C 优雅退出，自动清理临时文件。
 - ⚙️ **灵活配置**: 使用 TOML 格式配置文件，结构清晰，易于维护。
@@ -47,6 +49,16 @@ files = [
   "videos/clip2.mp4"
 ]
 loop = true
+audio = false  # 主流默认关闭音频
+
+# 子码流配置（可选）
+[[streams.sub_streams]]
+name_suffix = "_sub"
+url_suffix = "_sub"
+width = 640
+height = 360
+video_bitrate = "500k"
+audio = false
 ```
 
 ### 4. 启动推流
@@ -77,6 +89,13 @@ python main.py -c config.toml
 | `url` | 目标 RTSP 推流地址 |
 | `files` | 包含视频文件路径的数组。路径可以是相对或绝对路径 |
 | `loop` | `true` 为循环播放视频列表，`false` 为播放结束后停止 |
+| `audio` | `true` 为开启音频，`false` 为关闭音频（默认值） |
+| `sub_streams` | 子码流配置列表，每个子流都会基于视频源进行转码推流 |
+| `sub.width` | 子码流的目标宽度 |
+| `sub.height` | 子码流的目标高度 |
+| `sub.video_bitrate`| 子码流的视频码率（例如 "500k", "1M"） |
+| `sub.name_suffix` | 子流名称后缀，默认为 `_sub` |
+| `sub.url_suffix` | 子流 URL 后缀，默认为 `_sub` |
 
 ## 📝 注意事项
 

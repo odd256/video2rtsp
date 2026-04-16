@@ -6,11 +6,15 @@ import threading
 
 
 class StreamPusher:
-    def __init__(self, name, url, files, loop=True):
+    def __init__(self, name, url, files, loop=True, width=None, height=None, video_bitrate=None, audio=False):
         self.name = name
         self.url = url
         self.files = files
         self.loop = loop
+        self.width = width
+        self.height = height
+        self.video_bitrate = video_bitrate
+        self.audio = audio
         self.process = None
         self.playlist_path = None
 
@@ -48,12 +52,36 @@ class StreamPusher:
         if self.loop:
             cmd.extend(["-stream_loop", "-1"])
 
+        cmd.extend(["-i", self.playlist_path])
+
+        # 视频/音频编码逻辑
+        if self.width or self.video_bitrate:
+            # 开启转码模式
+            cmd.extend(["-c:v", "libx264", "-preset", "ultrafast", "-tune", "zerolatency"])
+            
+            # 分辨率调整
+            if self.width and self.height:
+                cmd.extend(["-vf", f"scale={self.width}:{self.height}"])
+            
+            # 码率控制
+            if self.video_bitrate:
+                cmd.extend(["-b:v", self.video_bitrate, "-maxrate", self.video_bitrate, "-bufsize", "1000k"])
+            
+            # 音频处理
+            if self.audio:
+                cmd.extend(["-c:a", "aac", "-b:a", "128k"])
+            else:
+                cmd.extend(["-an"])
+        else:
+            # 保持透传模式
+            cmd.extend(["-c:v", "copy"])
+            if self.audio:
+                cmd.extend(["-c:a", "copy"])
+            else:
+                cmd.extend(["-an"])
+
         cmd.extend(
             [
-                "-i",
-                self.playlist_path,
-                "-c:v",
-                "copy",
                 "-f",
                 "rtsp",
                 "-rtsp_transport",
