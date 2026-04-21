@@ -54,6 +54,13 @@ def main():
     # 全局码流开启设置 (both, main, sub)
     stream_mode = config.get("stream_mode", "both")
 
+    # 全局视频编码器设置
+    # libx264   = CPU 软件编码（默认，兼容性最好）
+    # h264_nvenc = NVIDIA GPU 编码（RTX/GTX 系列，CPU 占用极低）
+    # h264_qsv  = Intel 核显编码
+    # h264_amf  = AMD GPU 编码
+    video_encoder = config.get("video_encoder", "libx264")
+
     # 并发初始化和启动推流任务
     for sc in streams_conf:
         name = sc.get("name", "Unknown_Stream")
@@ -87,7 +94,8 @@ def main():
                 sub_pusher = StreamPusher(
                     s_name, s_url, files, loop,
                     width=s_width, height=s_height,
-                    video_bitrate=s_bitrate, audio=s_audio
+                    video_bitrate=s_bitrate, audio=s_audio,
+                    video_encoder=video_encoder,  # 传入全局编码器配置
                 )
                 pushers.append(sub_pusher)
                 sub_pusher.start()

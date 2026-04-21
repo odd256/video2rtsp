@@ -4,6 +4,14 @@
 # sub: 仅开启子码流
 stream_mode = "both"
 
+# 视频编码器 (仅在子码流转码时生效，主码流使用透传copy模式)
+# libx264    = CPU 软件编码，兴容性最好，但多路推流时 CPU 占用高
+# h264_nvenc = NVIDIA GPU 编码，RTX/GTX 独显推荐，CPU 占用极低
+# h264_qsv   = Intel 核显编码
+# h264_amf   = AMD GPU 编码
+video_encoder = "libx264"  # 根据硬件选择对应编码器
+
+
 [[streams]]
 name = "Live_Stream_1"
 url = "rtsp://localhost:8554/stream1"

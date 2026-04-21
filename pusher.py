@@ -5,8 +5,13 @@ import logging
 import threading
 
 
+# 已知 GPU 编码器集合，用于判断参数格式
+GPU_ENCODERS = {"h264_nvenc", "hevc_nvenc", "h264_qsv", "hevc_qsv", "h264_amf", "hevc_amf"}
+
+
 class StreamPusher:
-    def __init__(self, name, url, files, loop=True, width=None, height=None, video_bitrate=None, audio=False):
+    def __init__(self, name, url, files, loop=True, width=None, height=None,
+                 video_bitrate=None, audio=False, video_encoder="libx264"):
         self.name = name
         self.url = url
         self.files = files
@@ -15,6 +20,8 @@ class StreamPusher:
         self.height = height
         self.video_bitrate = video_bitrate
         self.audio = audio
+        # 视频编码器：libx264(CPU) / h264_nvenc(NVIDIA) / h264_qsv(Intel) / h264_amf(AMD)
+        self.video_encoder = video_encoder
         self.process = None
         self.playlist_path = None
 
@@ -59,27 +66,39 @@ class StreamPusher:
         # 视频/音频编码逻辑
         if self.width or self.video_bitrate:
             # 开启转码模式
-            encoder = "libx264"
-            cmd.extend(["-c:v", encoder])
-            
-            # 软件编码器特有优化参数
-            cmd.extend(["-preset", "ultrafast", "-tune", "zerolatency"])
-            
-            # 分辨率调整
+            cmd.extend(["-c:v", self.video_encoder])
+
+            is_gpu = self.video_encoder in GPU_ENCODERS
+
+            if is_gpu:
+                # GPU 编码器（NVENC / QSV / AMF）专用参数
+                # p1 = 最快速度 (NVENC: p1~p7，p1最快质量最低)
+                # -zerolatency 1 = 零延迟模式，适合实时推流
+                # -rc cbr = 使用固定码率模式，配合 -b:v 更稳定
+                cmd.extend(["-preset", "p1", "-zerolatency", "1"])
+                if self.video_bitrate:
+                    cmd.extend(["-rc", "cbr"])
+                logging.info(f"[{self.name}] 使用 GPU 编码器: {self.video_encoder}")
+            else:
+                # CPU 软件编码器（libx264）专用参数
+                cmd.extend(["-preset", "ultrafast", "-tune", "zerolatency"])
+                logging.info(f"[{self.name}] 使用 CPU 编码器: {self.video_encoder}")
+
+            # 分辨率调整（GPU/CPU 通用）
             if self.width and self.height:
                 cmd.extend(["-vf", f"scale={self.width}:{self.height}"])
-            
-            # 码率控制
+
+            # 码率控制（GPU/CPU 通用）
             if self.video_bitrate:
                 cmd.extend(["-b:v", self.video_bitrate, "-maxrate", self.video_bitrate, "-bufsize", "1000k"])
-            
+
             # 音频处理
             if self.audio:
                 cmd.extend(["-c:a", "aac", "-b:a", "128k"])
             else:
                 cmd.extend(["-an"])
         else:
-            # 保持透传模式
+            # 保持透传模式（直接复制码流，CPU 占用极低）
             cmd.extend(["-c:v", "copy"])
             if self.audio:
                 cmd.extend(["-c:a", "copy"])
