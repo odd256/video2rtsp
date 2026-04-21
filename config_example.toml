@@ -1,8 +1,3 @@
-# 全局硬件加速配置 (可选: cuda, qsv, amf, dxva2, d3d11va, none)
-# cuda: NVIDIA 显卡, qsv: Intel 显卡, amf: AMD 显卡
-# 开启硬解可以显著降低转码（如子码流缩放）时的 CPU 占用
-hwaccel = "none"
-
 # 全局码流开启设置 (可选: both, main, sub)
 # both: 同时开启主码流和子码流 (默认)
 # main: 仅开启主码流
