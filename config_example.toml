@@ -4,12 +4,18 @@
 # sub: 仅开启子码流
 stream_mode = "both"
 
-# 视频编码器 (仅在子码流转码时生效，主码流使用透传copy模式)
-# libx264    = CPU 软件编码，兴容性最好，但多路推流时 CPU 占用高
-# h264_nvenc = NVIDIA GPU 编码，RTX/GTX 独显推荐，CPU 占用极低
-# h264_qsv   = Intel 核显编码
-# h264_amf   = AMD GPU 编码
-video_encoder = "libx264"  # 根据硬件选择对应编码器
+# 视频编码器设置
+# 优先级：子流配置 > 流级别配置 > 全局配置
+# 默认行为：
+# - 子流：继承全局配置 (若未设置全局则默认为 libx264)
+# - 主流：默认使用 "copy" 模式（透传，不转码），除非在 [[streams]] 中显式配置了 video_encoder
+# 可选值:
+#   copy       = 直接透传 (不转码，CPU 占用极低)
+#   libx264    = CPU 软件编码
+#   h264_nvenc = NVIDIA GPU 编码 (强烈推荐)
+#   h264_qsv   = Intel 核显编码
+#   h264_amf   = AMD GPU 编码
+video_encoder = "h264_nvenc"  # 全局默认编码器配置
 
 
 [[streams]]
@@ -34,7 +40,10 @@ audio = false             # 子流默认关闭音频
 [[streams]]
 name = "Camera_2_Doorbell"
 url = "rtsp://localhost:8554/cam2"
-files = [
-  "B_1.mp4"
-]
+files = ["B_1.mp4"]
 loop = true
+video_encoder = "libx264"  # 该流的主流和子流将默认使用 libx264 (覆盖全局)
+
+[[streams.sub_streams]]
+name_suffix = "_sub"
+video_encoder = "copy"      # 强制该子流使用 copy 模式 (尽管它可能被缩放，但在 copy 模式下缩放会失效，这里仅作演示)
