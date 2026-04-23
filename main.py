@@ -59,7 +59,7 @@ def main():
     # h264_nvenc = NVIDIA GPU 编码（RTX/GTX 系列，CPU 占用极低）
     # h264_qsv  = Intel 核显编码
     # h264_amf  = AMD GPU 编码
-    video_encoder = config.get("video_encoder", "libx264")
+    global_video_encoder = config.get("video_encoder", "libx264")
 
     # 并发初始化和启动推流任务
     for sc in streams_conf:
@@ -72,8 +72,22 @@ def main():
             logging.warning(f"[{name}] 缺少 'url' 或 'files' 参数，跳过启动。")
             continue
             
+        # 流级别的编码器设置
+        stream_video_encoder = sc.get("video_encoder")
+
         if stream_mode in ["both", "main"]:
-            pusher = StreamPusher(name, url, files, loop, audio=audio)
+            # 主流配置：如果显式配置了编码器则使用，否则保持 StreamPusher 默认的 "copy"
+            pusher_args = {
+                "name": name,
+                "url": url,
+                "files": files,
+                "loop": loop,
+                "audio": audio
+            }
+            if stream_video_encoder:
+                pusher_args["video_encoder"] = stream_video_encoder
+            
+            pusher = StreamPusher(**pusher_args)
             # 将启动后的对象保存，在收到终止信号时清理
             pushers.append(pusher)
             pusher.start()
@@ -90,12 +104,14 @@ def main():
                 s_height = sub.get("height")
                 s_bitrate = sub.get("video_bitrate")
                 s_audio = sub.get("audio", False) # 子流默认关闭音频
+                # 子流继承逻辑：子流配置 -> 流配置 -> 全局配置
+                s_video_encoder = sub.get("video_encoder") or stream_video_encoder or global_video_encoder
 
                 sub_pusher = StreamPusher(
                     s_name, s_url, files, loop,
                     width=s_width, height=s_height,
                     video_bitrate=s_bitrate, audio=s_audio,
-                    video_encoder=video_encoder,  # 传入全局编码器配置
+                    video_encoder=s_video_encoder,
                 )
                 pushers.append(sub_pusher)
                 sub_pusher.start()
