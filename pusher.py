@@ -11,7 +11,7 @@ GPU_ENCODERS = {"h264_nvenc", "hevc_nvenc", "h264_qsv", "hevc_qsv", "h264_amf", 
 
 class StreamPusher:
     def __init__(self, name, url, files, loop=True, width=None, height=None,
-                 video_bitrate=None, audio=False, video_encoder="libx264"):
+                 video_bitrate=None, audio=False, video_encoder="copy"):
         self.name = name
         self.url = url
         self.files = files
@@ -64,11 +64,12 @@ class StreamPusher:
         cmd.extend(["-i", self.playlist_path])
 
         # 视频/音频编码逻辑
-        if self.width or self.video_bitrate:
+        if (self.video_encoder != "copy") or self.width or self.video_bitrate:
             # 开启转码模式
-            cmd.extend(["-c:v", self.video_encoder])
+            actual_encoder = self.video_encoder if self.video_encoder != "copy" else "libx264"
+            cmd.extend(["-c:v", actual_encoder])
 
-            is_gpu = self.video_encoder in GPU_ENCODERS
+            is_gpu = actual_encoder in GPU_ENCODERS
 
             if is_gpu:
                 # GPU 编码器（NVENC / QSV / AMF）专用参数
@@ -78,11 +79,11 @@ class StreamPusher:
                 cmd.extend(["-preset", "p1", "-zerolatency", "1"])
                 if self.video_bitrate:
                     cmd.extend(["-rc", "cbr"])
-                logging.info(f"[{self.name}] 使用 GPU 编码器: {self.video_encoder}")
+                logging.info(f"[{self.name}] 使用 GPU 编码器: {actual_encoder}")
             else:
                 # CPU 软件编码器（libx264）专用参数
                 cmd.extend(["-preset", "ultrafast", "-tune", "zerolatency"])
-                logging.info(f"[{self.name}] 使用 CPU 编码器: {self.video_encoder}")
+                logging.info(f"[{self.name}] 使用 CPU 编码器: {actual_encoder}")
 
             # 分辨率调整（GPU/CPU 通用）
             if self.width and self.height:
