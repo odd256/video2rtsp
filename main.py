@@ -61,6 +61,10 @@ def main():
     # h264_amf  = AMD GPU 编码
     global_video_encoder = config.get("video_encoder", "libx264")
 
+    # 每路推流的启动间隔（秒），避免多路 GPU 编码 session 同时初始化
+    # 使用 GPU 编码时建议设置为 0.5~1.0，CPU 编码可设置为 0
+    startup_delay = config.get("startup_delay", 0.0)
+
     # 并发初始化和启动推流任务
     for sc in streams_conf:
         name = sc.get("name", "Unknown_Stream")
@@ -91,6 +95,9 @@ def main():
             # 将启动后的对象保存，在收到终止信号时清理
             pushers.append(pusher)
             pusher.start()
+            # 按配置的间隔错开启动，防止多路 GPU session 同时初始化
+            if startup_delay > 0:
+                time.sleep(startup_delay)
         else:
             logging.info(f"[{name}] 根据配置，跳过启动主码流。")
 
@@ -115,6 +122,9 @@ def main():
                 )
                 pushers.append(sub_pusher)
                 sub_pusher.start()
+                # 按配置的间隔错开启动，防止多路 GPU session 同时初始化
+                if startup_delay > 0:
+                    time.sleep(startup_delay)
         elif sub_streams:
             logging.info(f"[{name}] 根据配置，跳过启动 {len(sub_streams)} 个子码流。")
 

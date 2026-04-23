@@ -17,6 +17,14 @@ stream_mode = "both"
 #   h264_amf   = AMD GPU 编码
 video_encoder = "h264_nvenc"  # 全局默认编码器配置
 
+# 每路推流的启动间隔（秒），默认 0（不等待）
+# 使用 GPU 编码（h264_nvenc / h264_qsv / h264_amf）时强烈建议配置此项：
+#   - 消费级 GPU（GeForce 系列）并发 NVENC session 上限仅 3 路，错开启动可以避免
+#     多路 session 同时初始化导致的 GPU 利用率瞬间飙满和超限崩溃
+#   - 推荐值：0.5 ~ 1.0（流数量越多、GPU 越低端，建议值越大）
+# 使用 CPU 编码（libx264 / copy）时可设为 0，无需等待
+startup_delay = 0.5
+
 
 [[streams]]
 name = "Live_Stream_1"
